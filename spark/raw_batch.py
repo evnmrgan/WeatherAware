@@ -4,16 +4,15 @@ import sys
 import csv
 import json
 from datetime import datetime
-from StringIO import StringIO
+from io import StringIO
 import configparser
 
+# PySpark is the Python API for Spark
 from pyspark import SparkContext, SparkConf
 from pyspark.storagelevel import StorageLevel
 from pyspark.sql import SparkSession, SQLContext
 from pyspark.sql.types import (StructType, StructField, FloatType,
                                TimestampType, IntegerType)
-
-from boto.s3.connection import S3Connection
 
 
 def file_year(fname):
@@ -99,30 +98,6 @@ def convert_to_float(string):
     except ValueError:
         return None
 
-
-def get_file_list(bucket_name):
-    '''
-    Given the S3 bucket, return a list of files sorted in
-    reverse chronological order
-    '''
-    file_list = []
-
-    conn = S3Connection()
-    bucket = conn.get_bucket(bucket_name)
-    for bucket_object in bucket.get_all_keys():
-        fname = bucket_object.key
-        if not fname.startswith('hourly'):
-            continue
-        year = file_year(fname)
-        if not year:
-            continue
-        file_list.append((fname, year))
-
-    file_list.sort(key=lambda x: x[1], reverse=True)
-
-    return [f[0] for f in file_list]
-
-
 def parse_measurement_record(measurement_record):
     '''
     This function ...
@@ -137,14 +112,14 @@ def parse_measurement_record(measurement_record):
     list
                 List of fields in the air monitor reading
     '''
-    f = StringIO(measurement_record.encode('ascii', 'ignore'))
+    f = StringIO(measurement_record)
     reader = csv.reader(f, delimiter=',')
-    record = reader.next()
+    record = next(reader)
 
     parameter = convert_to_int(record[3])
-    if parameter not in [44201, 88101, 88502]:
-        # Ignore records other than ozone (44201) or PM2.5 (88101)
-        return None
+    # if parameter not in [44201, 88101, 88502]:
+    #     # Ignore records other than ozone (44201) or PM2.5 (88101)
+    #     return None
 
     state_id = record[0]
     # Filter out header, Canada, Mexico, US Virgin Islands, or Guam
@@ -201,11 +176,17 @@ def station_to_grid(rdd):
     C = rdd[2]
     timestamp = rdd[3]
     # Since we made sure upstream that site_id is in dictionary, can extract it
+    # STATIONS is a dictionary -- keys are station IDs (e.g. '41|031|1002') and values are dicts
+    # Format of sub-dicts: keys are grid points, values are distances
     grid = STATIONS[site_id]
     measurements = []
+    # For each grid point within 30 miles of the station,
+    # add a tuple-tuple in the form (grid_id, timestamp, [pollutant]), (concentration, weight)
+    # The for loop iterates over the keys
     for grid_id in grid:
         distance = grid[grid_id]
         weight = 1. / (distance ** 2)
+        # C is the pollutant concentration
         weight_C_prod = C * weight
         measurements.append(((int(grid_id), timestamp, parameter),
                             (weight_C_prod, weight)))
@@ -283,19 +264,19 @@ def main(argv):
     # Read in data from the configuration file
 
     config = configparser.ConfigParser()
-    config.read('../setup.cfg')
+    config.read('config/setup.cfg')
 
     bucket_name = config["s3"]["bucket"]
     s3 = 's3a://' + bucket_name + '/'
-    spark_url = 'spark://' + config["spark"]["dns"]
-    postgres_url = 'jdbc:postgresql://' + config["postgres"]["dns"] + '/'\
-                   + config["postgres"]["db"]
-    table_hourly = 'measurements_hourly'
-    table_monthly = "measurements_monthly"
-    postgres_credentials = {
-        'user': config["postgres"]["user"],
-        'password': config["postgres"]["password"]
-    }
+    # spark_url = 'spark://' + config["spark"]["dns"]
+    # postgres_url = 'jdbc:postgresql://' + config["postgres"]["dns"] + '/'\
+    #                + config["postgres"]["db"]
+    # table_hourly = 'measurements_hourly'
+    # table_monthly = "measurements_monthly"
+    # postgres_credentials = {
+    #     'user': config["postgres"]["user"],
+    #     'password': config["postgres"]["password"]
+    # }
     cassandra_url = config["cassandra"]["dns"]
     cassandra_username = config["cassandra"]["user"]
     cassandra_password = config["cassandra"]["password"]
@@ -310,16 +291,22 @@ def main(argv):
     if len(argv) < 1:
         raise AssertionError("Usage: raw_batch.sh <data_file>")
 
-    data_fname = argv[1]
+    data_fname = argv[0]
     print('Processing file {}\n'.format(data_fname))
 
     # Create Spark context & session
 
-    conf = SparkConf().set("spark.cassandra.connection.host", cassandra_url)\
+    # .set("spark.jars.packages", "com.datastax.spark:spark-cassandra-connector_2.12:3.0.1")\
+    # .set("spark.sql.extensions", "com.datastax.spark.connector.CassandraSparkExtensions")
+    conf = SparkConf().set("spark.files", "secure-connect-epa-weather-history.zip")\
+                      .set("spark.cassandra.connection.config.cloud.path", "secure-connect-epa-weather-history.zip")\
                       .set("spark.cassandra.auth.username", cassandra_username)\
-                      .set("spark.cassandra.auth.password", cassandra_password)
+                      .set("spark.cassandra.auth.password", cassandra_password)\
+                      .set("spark.jars.packages", "org.apache.hadoop:hadoop-aws:3.2.0,com.datastax.spark:spark-cassandra-connector_2.12:3.0.1")\
+                      .set("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider")\
+                      .set("spark.sql.extensions", "com.datastax.spark.connector.CassandraSparkExtensions")
 
-    sc = SparkContext(spark_url, data_fname, conf=conf)
+    sc = SparkContext(conf=conf)
     spark = SparkSession(sc)
     sqlContext = SQLContext(sc)
 
@@ -341,8 +328,14 @@ def main(argv):
 
     raw = s3 + data_fname
     data_rdd = sc.textFile(raw)
+    print(data_rdd.count())
 
     # Compute hourly pollution levels on the grid
+    # .filter(lambda line: line is not None)\
+    # .flatMap(station_to_grid)\
+    # .reduceByKey(sum_weight_and_prods)\
+    # .map(calc_weighted_average_grid)\
+    # .persist(StorageLevel.MEMORY_AND_DISK)
     data_hourly = data_rdd\
         .map(parse_measurement_record)\
         .filter(lambda line: line is not None)\
@@ -351,30 +344,42 @@ def main(argv):
         .map(calc_weighted_average_grid)\
         .persist(StorageLevel.MEMORY_AND_DISK)
 
+    print(data_hourly.count())
+
     # Write them to Cassandra database
+    #     .sort("grid_id")\
+    #     .write\
+    #     .format("org.apache.spark.sql.cassandra")\
+    #     .mode('append')\
+    #     .options(table="table_hourly", keyspace="air")\
+    #     .save()
     data_hourly_df = spark\
         .createDataFrame(data_hourly, schema_hourly)\
         .sort("grid_id")\
         .write\
         .format("org.apache.spark.sql.cassandra")\
         .mode('append')\
-        .options(table=table_hourly, keyspace="air")\
+        .options(table="table_hourly", keyspace="weather")\
         .save()
 
-    # Average pollution levels for each month
-    data_monthly = data_hourly\
-        .map(group_by_month)\
-        .reduceByKey(sum_weight_and_prods)\
-        .map(average_over_month)\
-        .persist(StorageLevel.MEMORY_AND_DISK)
-
-    # Write monthly data to Postgres database
-    data_monthly_df = spark.createDataFrame(data_monthly, schema_monthly)
-    data_monthly_df.write.jdbc(
-        url=postgres_url, table=table_monthly,
-        mode='append', properties=postgres_credentials
-    )
+    # # Average pollution levels for each month
+    # data_monthly = data_hourly\
+    #     # output: ((grid_id, month_year, parameter), (C, 1))
+    #     .map(group_by_month)\
+    #     # divide the weighted concentrations by the sum of the weights
+    #     # output: (grid_id, parameter, timestamp, sum(weight*concentration)/sum(weight))
+    #     .reduceByKey(sum_weight_and_prods)\
+    #     # output: (grid_id, timestamp, parameter, C)
+    #     .map(average_over_month)\
+    #     .persist(StorageLevel.MEMORY_AND_DISK)
+    #
+    # # Write monthly data to Postgres database
+    # data_monthly_df = spark.createDataFrame(data_monthly, schema_monthly)
+    # data_monthly_df.write.jdbc(
+    #     url=postgres_url, table=table_monthly,
+    #     mode='append', properties=postgres_credentials
+    #)
 
 
 if __name__ == '__main__':
-    main(sys.argv)
+    main(['hourly_PRESS_2021.csv'])
