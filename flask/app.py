@@ -7,100 +7,103 @@ from sqlalchemy.sql import text
 from flask_cassandra import CassandraCluster
 from datetime import datetime
 from collections import OrderedDict
-
+from cassandra.cluster import Cluster
+from cassandra.auth import PlainTextAuthProvider
 
 app = Flask(__name__)
 app.config.from_object('config.DevelopmentConfig')
 GoogleMapsKey = app.config["GOOGLEMAPSKEY"]
 GoogleMapsJSKey = app.config["GOOGLEMAPSJSKEY"]
+CassandraUser = app.config["CASSANDRA_USER"]
+CassandraPassword = app.config["CASSANDRA_PASSWORD"]
+
+cloud_config= {'secure_connect_bundle': '/Users/evanmorgan/CQL/secure-connect-epa-weather-history.zip'}
+auth_provider = PlainTextAuthProvider(CassandraUser, CassandraPassword)
 
 db = SQLAlchemy(app)
-cassandra = CassandraCluster()
+cluster = Cluster(cloud=cloud_config, auth_provider=auth_provider)
 gmaps = googlemaps.Client(key=GoogleMapsKey)
 API_url = "https://maps.googleapis.com/maps/api/js?key="\
         + GoogleMapsJSKey + "&callback=initMap"
 
-# Parameter codes for asthma-causing pollutants
-ozone_code = 44201
-pm_frm_code = 88101  # Federal reference methods
-pm_code = 88502  # Non-federal reference methods
+# Parameter codes for weather variables
+pressure_code = 64101 # 44201
+wind_code = 61103 # 88101  # Federal reference methods
+temp_code = 62101
+humidity_code = 62201
+pm_code = 64101 # 88502  # Non-federal reference methods
 
-# SF coordinates as a default
-sf = dict()
-sf['lat'] = 41.8781136
-sf['lon'] = -87.6297982
+# Chicago coordinates as a default
+chi = dict()
+chi['lat'] = 41.8781136
+chi['lon'] = -87.6297982
 
 import models
 
 
-def get_pollutant_records(session, data, grid_id, parameter):
+def get_weather_records(session, data, grid_id, parameter):
     '''
-    Add full historical pollution data for pollutant code (parameter)
+    Add full historical data for weather code (parameter)
     at grid_id to a dictionary data
     '''
-    cql = "SELECT * FROM air.measurements_hourly WHERE grid_id = {} AND parameter = {}"
+    cql = "SELECT * FROM weather.table_hourly WHERE grid_id = {} AND parameter = '{}'"
     cql_command = cql.format(grid_id, parameter)
+    print(cql_command)
     records = list(session.execute(cql_command))
 
     for record in records:
         time = record.time.strftime('%Y-%m-%d %H:%M')
         if not data.get(time):
             data[time] = dict()
-        data[time][parameter] = record.c
+        data[time][parameter] = record.measurement
 
 
-def get_pollution_data(grid_id):
-    # Connect to Cassandra database and obtain pollution data
-    session = cassandra.connect()
-    session.set_keyspace("air")
+def get_weather_data(grid_id):
+    # Connect to Cassandra database and obtain weather data
+    session = cluster.connect()
+    # session = cassandra.connect()
+    print(session)
+    session.set_keyspace("weather")
 
     data = dict()
-    get_pollutant_records(session, data, grid_id, ozone_code)
-    get_pollutant_records(session, data, grid_id, pm_frm_code)
-    get_pollutant_records(session, data, grid_id, pm_code)
+    get_weather_records(session, data, grid_id, pressure_code)
+    print(next(iter((data.items()))))
+    get_weather_records(session, data, grid_id, wind_code)
+    print(next(iter((data.items()))))
+    get_weather_records(session, data, grid_id, temp_code)
+    print(next(iter((data.items()))))
+    get_weather_records(session, data, grid_id, humidity_code)
+    print(next(iter((data.items()))))
 
     return OrderedDict(sorted(data.items(), key=lambda t: t[0]))
 
 
-def get_ozone_and_pm(record):
+def get_measurements(record):
     '''
-    Given record containing pollution data, return streamlined record
+    Given record containing weather data, return streamlined record
     '''
-    ozone = record.get(ozone_code, None)
-    pm_frm = record.get(pm_frm_code, None)
-    pm = record.get(pm_code, None)
+    pressure = record.get(pressure_code, None)
+    wind = record.get(wind_code, None)
+    temp = record.get(temp_code, None)
+    humidity = record.get(humidity_code, None)
 
-    # Compute PM2.5 pollution level based on measurements available
-    # If we have a zero, report pollution level as 0, not None
-    n_pm = 0  # Counter of valid pm measurements
-    pm_average = 0.
-    if pm_frm is not None:
-        n_pm += 1
-        pm_average += pm_frm
-    if pm is not None:
-        n_pm += 1
-        pm_average += pm
-
-    if n_pm:
-        pm_average /= n_pm
-    else:
-        pm_average = None
-
-    return ['{:.2f}'.format(1000*ozone) if ozone is not None else '',
-            '{:.2f}'.format(pm_average) if pm_average is not None else '']
-
+    return ['{:.2f}'.format(pressure) if pressure is not None else '',
+            '{:.2f}'.format(wind) if wind is not None else '',
+            '{:.2f}'.format(temp) if temp is not None else '',
+            '{:.2f}'.format(humidity) if humidity is not None else '']
+            
 
 def make_csv(grid_id):
     '''
-    This function makes csv file with the full air pollution history for a given grid point
+    This function makes csv file with the full weather history for a given grid point
     '''
     # OrderedDict assembled from Cassandra
-    data = get_pollution_data(grid_id)
+    data = get_weather_data(grid_id)
 
-    yield ",".join(["Timestamp", "Ozone [ppb]", "PM2.5 [mcg/m3]"]) + '\n'
+    yield ",".join(["Timestamp", "Pressure [mbar]", "Wind [mph]", "Temp [F]", "Humidity [%]"]) + '\n'
     for timestep, record in data.items():
         yield ","\
-            .join([item for sublist in [[timestep], get_ozone_and_pm(record)]
+            .join([item for sublist in [[timestep], get_measurements(record)]
                   for item in sublist]) + '\n'
 
 
@@ -117,26 +120,26 @@ def get_coordinates_from_address(address_request):
     latitude, longitude = None, None
 
     if len(geocode_result) == 0:
-        return sf['lat'], sf['lon'], error_message
+        return chi['lat'], chi['lon'], error_message
 
     address = geocode_result[0]
     # Check if the address is in the U.S.
     try:
         formatted_address = address['formatted_address'].lower()
     except (TypeError, KeyError):
-        return sf['lat'], sf['lon'], error_message
+        return chi['lat'], chi['lon'], error_message
 
     if 'usa' in formatted_address or 'puerto rico' in formatted_address:
         try:
             coordinates = address["geometry"]["location"]
         except (TypeError, KeyError):
-            return sf['lat'], sf['lon'], error_message
+            return chi['lat'], chi['lon'], error_message
 
     if coordinates:
         latitude = coordinates["lat"]
         longitude = coordinates["lng"]
     else:
-        return sf['lat'], sf['lon'], error_message
+        return chi['lat'], chi['lon'], error_message
 
     return latitude, longitude, ''
 
@@ -159,20 +162,6 @@ def download():
         )
 
 
-def pollution_level(c, moderate, bad):
-    '''
-    Determine pollution level based on thresholds
-    '''
-    if c < moderate:
-        result = 'good'
-    elif c > moderate and c < bad:
-        result = 'moderate'
-    elif c > bad:
-        result = 'bad'
-
-    return result
-
-
 @app.route('/', methods=['GET', 'POST'])
 def dashboard():
 
@@ -187,7 +176,9 @@ def dashboard():
             FROM grid ORDER BY location <-> 'POINT({longitude} {latitude})'::geography limit 10000;
             """.format(**locals())
         )
+        print(sql)
         nearest_grid_points = db.engine.execute(sql).fetchall()
+        print(nearest_grid_points[0:10])
 
         for i in range(0, len(nearest_grid_points)):
             grid_id = nearest_grid_points[i][1]
@@ -201,46 +192,53 @@ def dashboard():
                 continue
 
             else:
-                ozone = [x for x in history_measurements if x.parameter == ozone_code]
-                ozone_data = [[1000*int(x.time.strftime('%s')), round(1000*x.c,2)] for x in ozone]
+                pressure = [x for x in history_measurements if x.parameter == pressure_code]
+                pressure_data = [[1000*int(x.time.strftime('%s')), round(x.c,2)] for x in pressure]
 
-                pm = [x for x in history_measurements if x.parameter == pm_frm_code]
-                pm_data = [[1000*int(x.time.strftime('%s')), round(x.c,2)] for x in pm]
+                wind = [x for x in history_measurements if x.parameter == wind_code]
+                wind_data = [[1000*int(x.time.strftime('%s')), round(x.c,2)] for x in wind]
+                
+                temp = [x for x in history_measurements if x.parameter == temp_code]
+                temp_data = [[1000*int(x.time.strftime('%s')), round(x.c,2)] for x in temp]
 
-                if len(ozone_data) == 0 or len(pm_data) == 0:
+                humidity = [x for x in history_measurements if x.parameter == humidity_code]
+                humidity_data = [[1000*int(x.time.strftime('%s')), round(x.c,2)] for x in humidity]
+                
+                print(len(pressure_data))
+
+                if len(pressure_data) == 0 or len(wind_data) == 0 or len(temp_data) == 0 or len(humidity_data) == 0:
                     rendered_webpage = request_from_location(
-                            sf['lat'],
-                            sf['lon'],
+                            chi['lat'],
+                            chi['lon'],
                             'Location you entered is too far from air quality monitors'
                         )
                     return rendered_webpage
 
-                ozone_current = ozone_data[-1][1]
-                pm_current = pm_data[-1][1]
-                ozone_level = pollution_level(ozone_current, 30, 50)
-                pm_level = pollution_level(pm_current, 12, 30)
-
-                # Setup charts
+                # Set up charts
                 chart_type = 'line'
                 chart_height = 350
-                chart_ozone = {"renderTo": 'chart_ozone', "type": chart_type, "height": chart_height}
-                chart_pm = {"renderTo": 'chart_pm', "type": chart_type, "height": chart_height}
-                series_ozone = [{'pointInterval': 30 * 24 * 3600 * 1000, "name": 'Ozone', "data": ozone_data}]
-                series_pm = [{'pointInterval': 30 * 24 * 3600 * 1000, "name": 'PM2.5', "data": pm_data}]
+                chart_pressure = {"renderTo": 'chart_pressure', "type": chart_type, "height": chart_height}
+                chart_wind = {"renderTo": 'chart_wind', "type": chart_type, "height": chart_height}
+                chart_temp = {"renderTo": 'chart_wind', "type": chart_type, "height": chart_height}
+                chart_humidity = {"renderTo": 'chart_humidity', "type": chart_type, "height": chart_height}
+                series_pressure = [{'pointInterval': 30 * 24 * 3600 * 1000, "name": 'Pressure', "data": pressure_data}]
+                series_wind = [{'pointInterval': 30 * 24 * 3600 * 1000, "name": 'Wind', "data": wind_data}]
+                series_temp = [{'pointInterval': 30 * 24 * 3600 * 1000, "name": 'Temp', "data": temp_data}]
+                series_humidity = [{'pointInterval': 30 * 24 * 3600 * 1000, "name": 'Humidity', "data": humidity_data}]
                 break
 
         return render_template(
-            'dashboard.html', chart_ozone=chart_ozone, chart_pm=chart_pm,
-            series_ozone=series_ozone, series_pm=series_pm,
-            ozone_current=ozone_data[-1][1], pm_current=pm_data[-1][1],
-            ozone_level=ozone_level, pm_level=pm_level,
+            'dashboard.html', chart_pressure=chart_pressure, chart_wind=chart_wind, 
+            chart_temp=chart_temp, chart_humidity=chart_humidity,
+            series_pressure=series_pressure, series_wind=series_wind,
+            series_temp=series_temp, series_humidity=series_humidity,
             lat=latitude, lon=longitude, grid_id=grid_id, API_url=API_url,
             error_message=error_message
         )
 
     if request.method == 'GET':
-        # Default coordinates in San Francisco downtown
-        rendered_webpage = request_from_location(sf['lat'], sf['lon'])
+        # Default coordinates in Chicago downtown
+        rendered_webpage = request_from_location(chi['lat'], chi['lon'])
         return rendered_webpage
 
     elif request.method == 'POST':
@@ -260,7 +258,7 @@ def dashboard():
 
 @app.route('/about', methods=['GET'])
 def about():
-    return redirect("https://github.com/agaiduk/AirAware")
+    return redirect("https://github.com/evnmrgan/WeatherAware")
 
 
 @app.route('/slides', methods=['GET'])
@@ -270,9 +268,10 @@ def slides():
 
 @app.route('/github', methods=['GET'])
 def github():
-    return redirect("https://github.com/agaiduk")
+    return redirect("https://github.com/evnmrgan")
 
 
 if __name__ == '__main__':
-    app.debug = True
-    app.run(host='0.0.0.0')
+    # app.debug = True
+    # app.run(host='0.0.0.0')
+    app.run(debug=True)

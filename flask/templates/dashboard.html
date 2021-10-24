@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AirAware</title>
+  <title>WeatherAware</title>
   <meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no' />
 
   <!-- Demo Dependencies -->
@@ -87,28 +87,21 @@
         <a class="navbar-brand" href="../">
           <span class="glyphicon glyphicon-chevron-left"></span>
         </a>
-        <a class="navbar-brand" href="https://github.com/agaiduk/AirAware">AirAware</a>
+        <a class="navbar-brand" href="https://github.com/evnmrgan/WeatherAware">WeatherAware</a>
       </div>
       <div class="navbar-collapse collapse">
         <ul class="nav navbar-nav navbar-left">
           <li><a href="https://docs.google.com/presentation/d/1BWLKoafapgM5VxpgU_nHYCeJLk38wu1VACwECdN8RIo">Slides</a></li>
           <li class="dropdown">
-            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Air Pollution<span class="caret"></span></a>
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Evan Morgan<span class="caret"></span></a>
             <ul class="dropdown-menu">
-              <li><a href="http://www.aafa.org/page/air-pollution-smog-asthma.aspx">Air pollution and asthma</a></li>
-              <li><a href="https://www.epa.gov/criteria-air-pollutants">EPA website</a></li>
+              <li><a href="../static/pdf/Resume_Morgan.pdf">Resume</a></li>
+              <li><a href="https://www.linkedin.com/in/evan-d-morgan">LinkedIn</a></li>
+              <li><a href="https://github.com/evnmrgan">Github</a></li>
+              <li><a href="https://read.dukeupress.edu/jhppl/article-abstract/45/2/177/143962">Publications</a></li>
             </ul>
           </li>
-          <li class="dropdown">
-            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Alex Gaiduk<span class="caret"></span></a>
-            <ul class="dropdown-menu">
-              <li><a href="../static/pdf/Resume_Gaiduk.pdf">Resume</a></li>
-              <li><a href="https://www.linkedin.com/in/agaiduk">LinkedIn</a></li>
-              <li><a href="https://github.com/agaiduk">Github</a></li>
-              <li><a href="https://scholar.google.com/citations?user=hkZPyt4AAAAJ&hl=en">Publications</a></li>
-            </ul>
-          </li>
-          <li><a href="mailto:a.gaiduk@gmail.com">Email</a></li>
+          <li><a href="mailto:evan.daniel.morgan@gmail.com">Email</a></li>
         </ul>
       </div>
     </div>
@@ -151,15 +144,15 @@
                 map: map
               });
 
-              var contentString = '<div id="content">'+
-                  '<div id="siteNotice">'+
-                  '</div>'+
-                  '<h4 id="firstHeading" class="firstHeading">Current conditions</h4>'+
-                  '<div id="bodyContent">'+
-                  '<p><b>Ozone:</b> ' + {{ ozone_current|safe }} + ' ppb ({{ ozone_level|safe }})</p>' +
-                  '<p><b>PM2.5:</b> ' + {{ pm_current|safe }} + ' &mu;g/m<sup>3</sup> ({{ pm_level|safe }})</p>' +
-                  '</div>'+
-                  '</div>';
+              // var contentString = '<div id="content">'+
+              //     '<div id="siteNotice">'+
+              //     '</div>'+
+              //     '<h4 id="firstHeading" class="firstHeading">Current conditions</h4>'+
+              //     '<div id="bodyContent">'+
+              //     '<p><b>Ozone:</b> ' + {{ ozone_current|safe }} + ' ppb ({{ ozone_level|safe }})</p>' +
+              //     '<p><b>Wind:</b> ' + {{ wind_current|safe }} + ' &mu;g/m<sup>3</sup> ({{ wind_level|safe }})</p>' +
+              //     '</div>'+
+              //     '</div>';
 
               var infowindow = new google.maps.InfoWindow({
                 content: contentString
@@ -188,11 +181,11 @@
       <div class="col-sm-6">
         <div class="chart-wrapper">
           <div class="chart-title">
-            <dfn data-info="Highly irritating gas known of causing asthma attacks">Ozone</dfn> air pollution
+            <dfn>Atmospheric pressure</dfn>
           </div>
-          <div class="chart" id="ozone"></div>
+          <div class="chart" id="pressure"></div>
           <div class="chart-notes">
-            Average monthly concentration of ozone in atmosphere
+            Pressure exerted by the weight of the atmosphere
           </div>
         </div>
       </div>
@@ -200,11 +193,39 @@
       <div class="col-sm-6">
         <div class="chart-wrapper">
           <div class="chart-title">
-            <dfn data-info="Hard particles with size netween 2.5 and 10 &mu;m; one of the most harmful components of smog">PM2.5 particles</dfn> air pollution
+            <dfn data-info="Air moving from high to low pressure, usually due to changes in temperature">Wind speed</dfn>
           </div>
-          <div class="chart" id="pm"></div>
+          <div class="chart" id="wind"></div>
           <div class="chart-notes">
-            Average monthly concentration of hard particles (between 2.5 and 10 &mu;m) in atmosphere
+            Average monthly wind speed
+          </div>
+        </div>
+      </div>
+
+    </div>
+    
+    <div class="row">
+
+      <div class="col-sm-6">
+        <div class="chart-wrapper">
+          <div class="chart-title">
+            <dfn>Temperature</dfn>
+          </div>
+          <div class="chart" id="temp"></div>
+          <div class="chart-notes">
+            Average daily temperature including high and low
+          </div>
+        </div>
+      </div>
+
+      <div class="col-sm-6">
+        <div class="chart-wrapper">
+          <div class="chart-title">
+            <dfn>Humidity</dfn>
+          </div>
+          <div class="chart" id="humidity"></div>
+          <div class="chart-notes">
+            The amount of water vapor in the air relative to the maximum possible vapor content at the current temperature
           </div>
         </div>
       </div>
@@ -224,38 +245,70 @@
   <script type="text/javascript" src="../static/js/keen-analytics.js"></script>
   <script src="http://code.highcharts.com/highcharts.js"></script>
   <script>
-      var chart_ozone = {{ chart_ozone|safe }}
-      var chart_pm = {{ chart_pm|safe }}
-      var series_ozone = {{ series_ozone|safe }}
-      var series_pm = {{ series_pm|safe }}
+      var chart_pressure = {{ chart_pressure|safe }}
+      var chart_wind = {{ chart_wind|safe }}
+      var chart_temp = {{ chart_temp|safe }}
+      var chart_humidity = {{ chart_humidity|safe }}
+      var series_pressure = {{ series_pressure|safe }}
+      var series_wind = {{ series_wind|safe }}
+      var series_temp = {{ series_temp|safe }}
+      var series_humidity = {{ series_humidity|safe }}
       var title = {"text": ''}
-      var tooltip_ozone = { 'pointFormat': "{series.name}: <b>{point.y:.2f}</b> ppb"}
-      var tooltip_pm = { 'pointFormat': "{series.name}: <b>{point.y:.2f}</b> &mu;g/m<sup>3</sup>", 'useHTML': true}
+      var tooltip_pressure = { 'pointFormat': "{series.name}: <b>{point.y:.2f}</b> mbar"}
+      var tooltip_wind = { 'pointFormat': "{series.name}: <b>{point.y:.2f}</b> mph", 'useHTML': true}
+      var tooltip_temp = { 'pointFormat': "{series.name}: <b>{point.y:.2f}</b> <sup>o</sup>F", 'useHTML': true}
+      var tooltip_humidity = { 'pointFormat': "{series.name}: <b>{point.y:.2f}</b> %", 'useHTML': true}
       var xAxis = {'type': 'datetime', "title": {'text': 'Date'}, 'min': Date.UTC(2010, 0, 0)}
-      var yAxis_ozone = {"title": {"text": 'Concentration, ppb'}}
-      var yAxis_pm = {"title": {"text": 'Concentration, &mu;g/m<sup>3</sup>', 'useHTML': true}}
+      var yAxis_pressure = {"title": {"text": 'Pressure, mbar'}}
+      var yAxis_wind = {"title": {"text": 'Wind speed, mph', 'useHTML': true}}
+      var yAxis_temp = {"title": {"text": 'Temperature, F', 'useHTML': true}}
+      var yAxis_humidity = {"title": {"text": 'Humidity, %', 'useHTML': true}}
       var plotOptions = {'series': {'marker': {'enabled': true}}}
 
       $(document).ready(function() {
-          $(ozone).highcharts({
-              chart: chart_ozone,
+          $(pressure).highcharts({
+              chart: chart_pressure,
               title: title,
               xAxis: xAxis,
-              yAxis: yAxis_ozone,
-              series: series_ozone,
-              tooltip: tooltip_ozone,
+              yAxis: yAxis_pressure,
+              series: series_pressure,
+              tooltip: tooltip_pressure,
               plotOptions: plotOptions
           });
       });
 
       $(document).ready(function() {
-          $(pm).highcharts({
-              chart: chart_pm,
+          $(wind).highcharts({
+              chart: chart_wind,
               title: title,
               xAxis: xAxis,
-              yAxis: yAxis_pm,
-              series: series_pm,
-              tooltip: tooltip_pm,
+              yAxis: yAxis_wind,
+              series: series_wind,
+              tooltip: tooltip_wind,
+              plotOptions: plotOptions
+          });
+      });
+      
+      $(document).ready(function() {
+          $(temp).highcharts({
+              chart: chart_temp,
+              title: title,
+              xAxis: xAxis,
+              yAxis: yAxis_temp,
+              series: series_temp,
+              tooltip: tooltip_temp,
+              plotOptions: plotOptions
+          });
+      });
+      
+      $(document).ready(function() {
+          $(humidity).highcharts({
+              chart: chart_humidity,
+              title: title,
+              xAxis: xAxis,
+              yAxis: yAxis_humidity,
+              series: series_humidity,
+              tooltip: tooltip_humidity,
               plotOptions: plotOptions
           });
       });

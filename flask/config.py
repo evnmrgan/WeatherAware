@@ -4,16 +4,20 @@ import configparser
 # Read in configuration file
 
 config = configparser.ConfigParser()
-config.read('../setup.cfg')
+config.read('setup.cfg')
 
 postgres_url = 'postgresql://'\
                + config["postgres"]["user"] + ':' + config["postgres"]["password"]\
-               + '@localhost:' + config["postgres"]["port"] + '/' + config["postgres"]["db"]
+               + '@' + config["postgres"]["host"] + ':' + config["postgres"]["port"] + '/' + config["postgres"]["database"]
 
 secret_key = config["flask"]["secret_key"]
 GoogleMapsKey = config["flask"]["GoogleMapsKey"]
 GoogleMapsJSKey = config["flask"]["GoogleMapsJSKey"]
-CassandraNode = config["cassandra"]["dns"]
+CassandraUser = config["cassandra"]["user"]
+CassandraPassword = config["cassandra"]["password"]
+# CassandraNode = config["cassandra"]["dns"]
+
+print(postgres_url)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
@@ -27,7 +31,9 @@ class Config(object):
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     GOOGLEMAPSKEY = GoogleMapsKey
     GOOGLEMAPSJSKEY = GoogleMapsJSKey
-    CASSANDRA_NODES = CassandraNode
+    CASSANDRA_USER = CassandraUser
+    CASSANDRA_PASSWORD = CassandraPassword
+    # CASSANDRA_NODES = CassandraNode
 
 
 class ProductionConfig(Config):

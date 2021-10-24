@@ -3,6 +3,7 @@ from __future__ import print_function
 import sys
 import csv
 import json
+import boto3
 from datetime import datetime
 from io import StringIO
 import configparser
@@ -34,7 +35,7 @@ def file_year(fname):
     return year
 
 
-def get_grid_from_file(filename):
+def get_grid_from_file(bucketname, keyname):
     '''
     Load a text file with one line of JSON containing all grid points
 
@@ -48,9 +49,15 @@ def get_grid_from_file(filename):
     dict
                     Dictionary of grid points with lon and lat
     '''
-    with open(filename) as f:
-        raw_json = f.readline()
+    s3 = boto3.resource('s3')
+
+    content_object = s3.Object(bucketname, keyname)
+    raw_json = content_object.get()['Body'].read().decode('utf-8')
     return json.loads(raw_json)
+
+    # with open(filename) as f:
+    #     raw_json = f.readline()
+    # return json.loads(raw_json)
 
 
 def convert_to_int(string):
@@ -262,29 +269,39 @@ def average_over_month(rdd):
 def main(argv):
 
     # Read in data from the configuration file
+    s3_boto = boto3.client('s3')
+    config_bucket = 'epa-weather-history'
+    config_key = 'config/setup.cfg'
+    config_obj = s3_boto.get_object(Bucket=config_bucket, Key=config_key)
 
     config = configparser.ConfigParser()
-    config.read('config/setup.cfg')
+    config.read_string(config_obj['Body'].read().decode())
+    
+    print("Here are the keys for the config file:")
+    print(list(config.keys()))
 
     bucket_name = config["s3"]["bucket"]
     s3 = 's3a://' + bucket_name + '/'
     # spark_url = 'spark://' + config["spark"]["dns"]
-    # postgres_url = 'jdbc:postgresql://' + config["postgres"]["dns"] + '/'\
-    #                + config["postgres"]["db"]
+    postgres_url = 'jdbc:postgresql://' + config["postgres"]["host"] + '/'\
+                   + config["postgres"]["database"]
     # table_hourly = 'measurements_hourly'
-    # table_monthly = "measurements_monthly"
-    # postgres_credentials = {
-    #     'user': config["postgres"]["user"],
-    #     'password': config["postgres"]["password"]
-    # }
+    table_monthly = "measurements_monthly"
+    postgres_credentials = {
+        'user': config["postgres"]["user"],
+        'password': config["postgres"]["password"],
+        'driver': 'org.postgresql.Driver'
+    }
     cassandra_url = config["cassandra"]["dns"]
     cassandra_username = config["cassandra"]["user"]
     cassandra_password = config["cassandra"]["password"]
+    s3_access_key = config["s3"]["aws_access_key_id"]
+    s3_secret_key = config["s3"]["aws_secret_access_key"]
 
     # Global variable STATIONS to store distances from stations to grid points
 
     global STATIONS
-    STATIONS = get_grid_from_file("stations.json")
+    STATIONS = get_grid_from_file(bucket_name, "emr-data/stations.json")
 
     # Start processing data files
 
@@ -302,8 +319,8 @@ def main(argv):
                       .set("spark.cassandra.connection.config.cloud.path", "secure-connect-epa-weather-history.zip")\
                       .set("spark.cassandra.auth.username", cassandra_username)\
                       .set("spark.cassandra.auth.password", cassandra_password)\
-                      .set("spark.jars.packages", "org.apache.hadoop:hadoop-aws:3.2.0,com.datastax.spark:spark-cassandra-connector_2.12:3.0.1")\
-                      .set("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider")\
+                      .set("spark.jars.packages", "org.apache.hadoop:hadoop-aws:3.2.0,com.datastax.spark:spark-cassandra-connector_2.12:3.1.0")\
+                      .set("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")\
                       .set("spark.sql.extensions", "com.datastax.spark.connector.CassandraSparkExtensions")
 
     sc = SparkContext(conf=conf)
@@ -345,6 +362,7 @@ def main(argv):
         .persist(StorageLevel.MEMORY_AND_DISK)
 
     print(data_hourly.count())
+    print(data_hourly.take(5))
 
     # Write them to Cassandra database
     #     .sort("grid_id")\
@@ -353,33 +371,44 @@ def main(argv):
     #     .mode('append')\
     #     .options(table="table_hourly", keyspace="air")\
     #     .save()
-    data_hourly_df = spark\
-        .createDataFrame(data_hourly, schema_hourly)\
-        .sort("grid_id")\
-        .write\
-        .format("org.apache.spark.sql.cassandra")\
-        .mode('append')\
-        .options(table="table_hourly", keyspace="weather")\
-        .save()
+    # data_hourly_df = spark\
+    #     .createDataFrame(data_hourly, schema_hourly)\
+    #     .sort("grid_id")\
+    #     .withColumnRenamed("c", "measurement")\
+    #     .write\
+    #     .format("org.apache.spark.sql.cassandra")\
+    #     .mode('append')\
+    #     .options(table="table_hourly", keyspace="weather")\
+    #     .save()
+    # data_hourly_df = spark\
+    #     .createDataFrame(data_hourly, schema_hourly)\
+    #     .sort("grid_id")\
+    #     .write\
+    #     .mode("overwrite")\
+    #     .csv("s3a://epa-weather-history/hourly_PRESS_2021_cassandra")
+    # data_hourly.saveAsTextFile("s3a://epa-weather-history/hourly_PRESS_2021_cassandra")
+    # data_hourly_df = data_hourly.toDF()
+    # data_hourly_df.printSchema()
+    # data_hourly_df.show(5)
 
-    # # Average pollution levels for each month
-    # data_monthly = data_hourly\
-    #     # output: ((grid_id, month_year, parameter), (C, 1))
-    #     .map(group_by_month)\
-    #     # divide the weighted concentrations by the sum of the weights
-    #     # output: (grid_id, parameter, timestamp, sum(weight*concentration)/sum(weight))
-    #     .reduceByKey(sum_weight_and_prods)\
-    #     # output: (grid_id, timestamp, parameter, C)
-    #     .map(average_over_month)\
-    #     .persist(StorageLevel.MEMORY_AND_DISK)
-    #
-    # # Write monthly data to Postgres database
-    # data_monthly_df = spark.createDataFrame(data_monthly, schema_monthly)
-    # data_monthly_df.write.jdbc(
-    #     url=postgres_url, table=table_monthly,
-    #     mode='append', properties=postgres_credentials
-    #)
+    # Average pollution levels for each month
+    data_monthly = (data_hourly\
+        # output: ((grid_id, month_year, parameter), (C, 1))
+        .map(group_by_month)\
+        # divide the weighted concentrations by the sum of the weights
+        # output: (grid_id, parameter, timestamp, sum(weight*concentration)/sum(weight))
+        .reduceByKey(sum_weight_and_prods)\
+        # output: (grid_id, timestamp, parameter, C)
+        .map(average_over_month)\
+        .persist(StorageLevel.MEMORY_AND_DISK))
+
+    # Write monthly data to Postgres database
+    data_monthly_df = spark.createDataFrame(data_monthly, schema_monthly)
+    data_monthly_df.write.jdbc(
+        url=postgres_url, table=table_monthly,
+        mode='append', properties=postgres_credentials
+    )
 
 
 if __name__ == '__main__':
-    main(['hourly_PRESS_2021.csv'])
+    main(['hourly_WIND_2021.csv'])
