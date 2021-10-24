@@ -51,7 +51,7 @@ reverse-geocode==1.4
 s3transfer==0.4.2
 scipy==1.7.0
 scramp==1.4.0
-setuptools==49.6.0.post20210108
+setuptools
 Shapely==1.7.1
 six==1.16.0
 soupsieve==2.0.1
