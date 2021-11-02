@@ -33,13 +33,13 @@ Pressure, temperature, wind, and humidity are primary factors determining the we
 
 ## Practical significance
 
-WeatherAware displays the vital monthly weather data for any United States location. For the chosen location, a user can download years of historical hourly data. The app could be useful for homeowners planning a move to a new location, pilots looking to understand the weather patterns in their flight path, or construction companies looking to determine the number of workable days in the new year.
+WeatherAware displays the vital monthly weather data for any United States location. For the chosen location, a user can download years of historical hourly data. The app could be useful for homeowners planning a move to a new location, pilots looking to understand the weather patterns in their flight path, or construction companies looking to determine the number of workable days in the year.
 
 ## Data pipeline
 
 ### Data extraction
 
-The complete measurement data is available free of charge on [EPA website](https://aqs.epa.gov/aqsweb/airdata/download_files.html#Raw) for the years 1980-2017, measured every hour at all locations across US. The amount of data is ~10 Gb/year for years after 2000. The data is constantly updated. Extraction step consists in downloading data into an Amazon S3 storage bucket, then loading it into Spark's RDD object and cleaning it up.
+The complete measurement data is available free of charge on [EPA website](https://aqs.epa.gov/aqsweb/airdata/download_files.html#Raw) for the years 1980-2021, measured every hour at all locations across US. The amount of data is ~10 Gb/year for years after 2000. The data is constantly updated. Extraction step consists in downloading data into an Amazon S3 storage bucket, then loading it into Spark's RDD object and cleaning it up.
 
 ### Data transformation
 
