@@ -1,8 +1,10 @@
-# AirAware
+# WeatherAware
 
-The goal of my Insight Data Engineering project was to develop a data pipeline and Web platform for monitoring air quality at arbitrary United States locations. My data application could be used by analytics teams to understand the effect of pollution on health, with the specific focus on asthma and preventing its attacks.
+WeatherAware is a web application for monitoring key weather data at any location in the United States. 
 
-Screencast: https://youtu.be/MRiDzQR7k7w
+It is a fork of Alex Gaiduk's AirAware application, which is used for pollution monitoring.
+
+Screencast: Link here
 
 ## Table of contents
 1. [Introduction](README.md#introduction)
@@ -19,15 +21,19 @@ Screencast: https://youtu.be/MRiDzQR7k7w
 
 ## Introduction
 
-Air pollution is a serious health hazard. It causes conditions such as asthma, lung cancer, and heart diseases, and is responsible for 1.3 million deaths worldwide [[link](http://www.who.int/ceh/risks/cehair/en/)]. In the Los Angeles Basin and San Joaquin Valley of Southern California alone, considerably more people die prematurely from air pollution than from auto collisions [[link](http://calstate.fullerton.edu/news/2008/091-air-pollution-study.html)].
+Pressure, temperature, wind, and humidity are primary factors determining the weather in a given location.
 
-To minimize the effects of air pollution on health, more information is needed about the level of pollutants such as ozone, sulfur oxide, and solid particles in the air, at various locations. Environmental Protection Agency (EPA) routinely measures concentrations of various pollutants in the atmosphere, and openly releases these data. The air quality data are accumulated at air control stations that aren't usually located in residential areas. This project will use the EPA datasets to estimate the content of pollutants in the atmosphere at arbitrary locations, by computing average pollution levels between different stations.
+**Atmospheric pressure** is the downward force exerted by the air as a result of gravity. Low pressure systems bring clouds, wind, and precipitation, while high-pressure systems mean fairer, calmer weather.
 
-The author's vision for the product is the application that would show the air quality at an arbitrary location, as well as let user download cleaned up historical data for this location. The first step, accomplished in this Insight project, implements this functionality for the United States.
+**Temperature** measures the average speed of molecules in a substance. Temperature varies across the globe due to latitude, geography, ocean currents, and winds.
+
+**Wind** is the movement of air across Earth's surface as the planet is unevenly heated by the sun. Winds blow to restore the balance of temperature and pressure across the globe.
+
+**Humidity** measures the water vapor content of the air. Humidity helps determine precipitation and the volume of cloud formation.
 
 ## Practical significance
 
-The result of the project will be a Web application showing pollution levels at an arbitrary U.S. address. It could be used for monitoring local air quality and providing warnings when air quality is unacceptable. The broader goal of this project is to build a platform for data analytics teams to help develop new predictive models of air quality.
+WeatherAware displays the vital monthly weather data for any United States location. For the chosen location, a user can download years of historical hourly data. The app could be useful for homeowners planning a move to a new location, pilots looking to understand the weather patterns in their flight path, or construction companies looking to determine the number of workable days in the new year.
 
 ## Data pipeline
 
