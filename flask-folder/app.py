@@ -191,7 +191,7 @@ def dashboard():
                 # data (for example, it is far from any air quality station)
                 continue
 
-            else:
+            else:                
                 pressure = [x for x in history_measurements if x.parameter == pressure_code]
                 pressure_data = [[1000*int(x.time.strftime('%s')), round(x.c,2)] for x in pressure]
 
@@ -203,10 +203,23 @@ def dashboard():
 
                 humidity = [x for x in history_measurements if x.parameter == humidity_code]
                 humidity_data = [[1000*int(x.time.strftime('%s')), round(x.c,2)] for x in humidity]
+                print("grid point:")
+                print(grid_id)
                 
+                print("pressure!")
+                print(pressure_data)
                 print(len(pressure_data))
+                print("wind!")
+                print(wind_data)
+                print(len(wind_data))
+                print("temperature!")
+                print(temp_data)
+                print(len(temp_data))
+                print("humidity!")
+                print(humidity_data)
+                print(len(humidity_data))
 
-                if len(pressure_data) == 0 or len(wind_data) == 0 or len(temp_data) == 0 or len(humidity_data) == 0:
+                if len(pressure_data) == 0 and len(wind_data) == 0 and len(temp_data) == 0 and len(humidity_data) == 0:
                     rendered_webpage = request_from_location(
                             chi['lat'],
                             chi['lon'],
@@ -225,6 +238,8 @@ def dashboard():
                 series_wind = [{'pointInterval': 30 * 24 * 3600 * 1000, "name": 'Wind', "data": wind_data}]
                 series_temp = [{'pointInterval': 30 * 24 * 3600 * 1000, "name": 'Temp', "data": temp_data}]
                 series_humidity = [{'pointInterval': 30 * 24 * 3600 * 1000, "name": 'Humidity', "data": humidity_data}]
+                print("series_pressure")
+                print(series_pressure)
                 break
 
         return render_template(

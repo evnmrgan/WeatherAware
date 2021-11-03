@@ -4,7 +4,9 @@ import configparser
 # Read in configuration file
 
 config = configparser.ConfigParser()
-config.read('setup.cfg')
+config.read('config/setup.cfg')
+
+print(config.keys())
 
 postgres_url = 'postgresql://'\
                + config["postgres"]["user"] + ':' + config["postgres"]["password"]\
