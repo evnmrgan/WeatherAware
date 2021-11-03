@@ -62,7 +62,7 @@ Once the computation for each moment of time is complete, the resulting grid nee
 
 To solve these challenges, WeatherAware uses a PostgreSQL database with PostGIS extension is used for quick location lookup and monthly historical data. A Cassandra distributed database is used for full historical data lookup at an hourly resolution.
 
-## Technologies
+## Pipeline
 
 WeatherAware has the following data pipeline:
 
@@ -71,4 +71,4 @@ WeatherAware has the following data pipeline:
 3. Store map and monthly measurements in a PostgreSQL database; store full historical data at hourly resolution in a Cassandra database
 4. In a Flask application, use Google Maps API to find latitude and longitude of a given U.S. address; locate a grid point closest to the address and retrieve data for this grid point
 
-![Project's pipeline](./pipeline.png)
+![Project pipeline](./pipeline.jpg)
