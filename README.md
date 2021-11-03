@@ -16,14 +16,13 @@ Screencast: Link here
 4. [Challenges](README.md#challenges)
     * [Computation](README.md#computation)
     * [Storage](README.md#storage)
-    * [Complex task automation](README.md#complex-task-automation)
 5. [Technologies](README.md#technologies)
 
 ## Introduction
 
 Pressure, temperature, wind, and humidity are primary factors determining the weather in a given location.
 
-**Atmospheric pressure** is the downward force exerted by the air as a result of gravity. Low pressure systems bring clouds, wind, and precipitation, while high-pressure systems mean fairer, calmer weather.
+**Atmospheric pressure** is the downward force exerted by the air as a result of gravity. Low pressure systems bring clouds, wind, and precipitation, while high-pressure systems bring fairer, calmer weather.
 
 **Temperature** measures the average speed of molecules in a substance. Temperature varies across the globe due to latitude, geography, ocean currents, and winds.
 
@@ -55,7 +54,7 @@ Cleaned monthly average measurements are loaded into the PostgreSQL database wit
 
 ### Computation
 
-Interpolation of geospatial data is computationally expensive: for each time step, around 50 million unique combinations of stations and grid points need to be considered for each parameter. In addition, each of these calculations involves computing distance between two geographical points using five trigonometric function estimations. Doing these calculations on-the-fly would result in unacceptably long wait times for users. To cut the computational cost, WeatherAware precomputes distances between the grid points and stations.
+Interpolation of geospatial data is computationally expensive: for each time step, around 50 million unique combinations of stations and grid points need to be considered for each weather measurement. In addition, each of these calculations involves computing distance between two geographical points using five trigonometric function estimations. Doing these calculations on-the-fly would result in unacceptably long wait times for users. To cut the computational cost, WeatherAware precomputes distances between the grid points and stations.
 
 ### Storage
 
@@ -65,7 +64,7 @@ To solve these challenges, WeatherAware uses a PostgreSQL database with PostGIS 
 
 ## Technologies
 
-Considering the challenges above, WeatherAware has the following data pipeline:
+WeatherAware has the following data pipeline:
 
 1. Extract raw EPA sensor data (Amazon S3)
 2. Load EPA data in a Spark batch job; compute the weather map; calculate monthly averages (Spark, EMR)
